@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/digest-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/digest-rs/host/target/$TARGET_HOST/release/digest-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/digest-rs
 
 # Run script specific commands in QEMU
 OUTPUT=$(run_in_qemu "digest-rs message1 message2") || print_detail_and_exit

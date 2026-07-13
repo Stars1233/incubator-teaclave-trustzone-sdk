@@ -319,7 +319,7 @@ cargo-optee build ta \
 # Build aarch64 TA with std support
 cargo-optee build ta \
   --ta-dev-kit-dir /opt/optee/export-ta_arm64 \
-  --manifest-path ./examples/hello_world-rs/ta/Cargo.toml \
+  --manifest-path ./examples/ta/hello_world-rs/Cargo.toml \
   --arch aarch64 \
   --std
 
@@ -365,7 +365,7 @@ cargo-optee build ca \
 # Build aarch64 client application
 cargo-optee build ca \
   --optee-client-export /opt/optee/export-client \
-  --manifest-path ./examples/hello_world-rs/host/Cargo.toml \
+  --manifest-path ./examples/ca/hello_world-rs/Cargo.toml \
   --arch aarch64
 ```
 
@@ -374,7 +374,7 @@ cargo-optee build ca \
 
 #### Build Plugin
 
-We have one example for plugin: `supp_plugin-rs/plugin`.
+We have one example for plugin: `examples/ca/supp_plugin-rs-plugin`.
 
 ```bash
 cargo-optee build plugin \
@@ -401,8 +401,8 @@ cargo-optee build plugin \
 # Build aarch64 plugin
 cargo-optee build plugin \
   --optee-client-export /opt/optee/export-client \
-  --manifest-path ./examples/supp_plugin-rs/plugin/Cargo.toml \
-  --uuid-path ./examples/supp_plugin-rs/plugin_uuid.txt \
+  --manifest-path ./examples/ca/supp_plugin-rs-plugin/Cargo.toml \
+  --uuid-path ./examples/ca/supp_plugin-rs-plugin/plugin_uuid.txt \
   --arch aarch64
 ```
 

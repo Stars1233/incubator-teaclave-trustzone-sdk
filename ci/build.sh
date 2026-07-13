@@ -249,14 +249,6 @@ for EXAMPLE_NAME in "${ALL_EXAMPLES[@]}"; do
     fi
     
     CURRENT=$((CURRENT + 1))
-    EXAMPLE_DIR="$EXAMPLES_DIR/$EXAMPLE_NAME"
-    
-    if [ ! -d "$EXAMPLE_DIR" ]; then
-        echo "ERROR: Example directory not found: $EXAMPLE_DIR"
-        FAILED_EXAMPLES="$FAILED_EXAMPLES\n  - $EXAMPLE_NAME"
-        continue
-    fi
-    
     echo ""
     echo "=========================================="
     echo "[$CURRENT] Building: $EXAMPLE_NAME ($CATEGORY)"
@@ -311,8 +303,6 @@ for EXAMPLE_NAME in "${ALL_EXAMPLES[@]}"; do
                 --arch "$ARCH_TA" \
                 $TA_STD_FLAG; then
                 echo "  ✓ TA installed successfully"
-                # Clean up build artifacts
-                $CARGO_OPTEE clean
             else
                 echo "  ✗ ERROR: Failed to install TA: $TA_DIR"
                 FAILED_EXAMPLES="$FAILED_EXAMPLES\n  - $EXAMPLE_NAME ($TA_DIR)"
@@ -358,8 +348,6 @@ for EXAMPLE_NAME in "${ALL_EXAMPLES[@]}"; do
             --optee-client-export "$OPTEE_CLIENT_EXPORT" \
             --arch "$ARCH_HOST"; then
             echo "  ✓ CA installed successfully"
-            # Clean up build artifacts
-            $CARGO_OPTEE clean
         else
             echo "  ✗ ERROR: Failed to install CA: $CA_DIR"
             FAILED_EXAMPLES="$FAILED_EXAMPLES\n  - $EXAMPLE_NAME ($CA_DIR)"
@@ -404,8 +392,6 @@ for EXAMPLE_NAME in "${ALL_EXAMPLES[@]}"; do
             --optee-client-export "$OPTEE_CLIENT_EXPORT" \
             --arch "$ARCH_HOST"; then
             echo "  ✓ Plugin installed successfully"
-            # Clean up build artifacts
-            $CARGO_OPTEE clean
         else
             echo "  ✗ ERROR: Failed to install Plugin: $PLUGIN_DIR"
             FAILED_EXAMPLES="$FAILED_EXAMPLES\n  - $EXAMPLE_NAME ($PLUGIN_DIR)"
@@ -422,6 +408,31 @@ for EXAMPLE_NAME in "${ALL_EXAMPLES[@]}"; do
     echo ""
     echo "✓ Example $EXAMPLE_NAME completed successfully"
 done
+
+echo ""
+echo "==========================================="
+echo "       WORKSPACE TARGET DISK USAGE"
+echo "==========================================="
+
+TARGET_DIRS=()
+if [ -d "$EXAMPLES_DIR/ta/target" ]; then
+    TARGET_DIRS+=("$EXAMPLES_DIR/ta/target")
+fi
+if [ -d "$EXAMPLES_DIR/ca/target" ]; then
+    TARGET_DIRS+=("$EXAMPLES_DIR/ca/target")
+fi
+
+if [ "${#TARGET_DIRS[@]}" -gt 0 ]; then
+    du -sch "${TARGET_DIRS[@]}"
+else
+    echo "No workspace target directories were created."
+fi
+
+echo ""
+echo "Cleaning workspace build artifacts..."
+cargo clean --manifest-path "$EXAMPLES_DIR/ta/Cargo.toml"
+cargo clean --manifest-path "$EXAMPLES_DIR/ca/Cargo.toml"
+echo "Workspace build artifacts cleaned successfully."
 
 # Summary
 echo ""
@@ -448,4 +459,3 @@ else
     echo "✅ ALL EXAMPLES INSTALLED SUCCESSFULLY!"
     echo ""
 fi
-

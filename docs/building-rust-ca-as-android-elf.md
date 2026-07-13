@@ -63,5 +63,5 @@ clean:
 7. build:
 
 ```
-$ make -C examples/hello_world-rs/host
+$ make -C examples/ca/hello_world-rs
 ```

@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/tcp_client-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/tcp_client-rs/host/target/$TARGET_HOST/release/tcp_client-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/tcp_client-rs
 
 # Run script specific commands in QEMU
 run_in_qemu "tcp_client-rs" || print_detail_and_exit

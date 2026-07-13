@@ -23,14 +23,14 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/mnist-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/mnist-rs/host/target/$TARGET_HOST/release/mnist-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/mnist-rs
 
 # Run script specific commands in QEMU
 # Do not export the model due to QEMU's memory limitations.
 OUTPUT1=$(run_in_qemu_with_timeout_secs "mnist-rs train -n 1" 300) || print_detail_and_exit
 # Copy samples files
-copy_to_qemu "/tmp" ../examples/mnist-rs/host/samples/*
+copy_to_qemu "/tmp" ../examples/ca/mnist-rs/samples/*
 OUTPUT2=$(run_in_qemu "mnist-rs infer -m /tmp/model.bin -b /tmp/7.bin -i /tmp/7.png") || print_detail_and_exit
 
 # Script specific checks

@@ -73,13 +73,13 @@ std-examples no-std-examples:
 install: examples
 	$(echo) '  INSTALL ${out-dir}/lib/optee_armtz'
 	$(q)mkdir -p ${out-dir}/lib/optee_armtz
-	$(q)find examples/*/ta/target/$(TARGET_TA)/ -name *.ta -exec cp {} ${out-dir}/lib/optee_armtz \;
+	$(q)find examples/ta/target/$(TARGET_TA)/ -name *.ta -exec cp {} ${out-dir}/lib/optee_armtz \;
 	$(echo) '  INSTALL ${out-dir}${bindir}'
 	$(q)mkdir -p ${out-dir}${bindir}
-	$(q)cp examples/*/host/target/$(TARGET_HOST)/release/*-rs ${out-dir}${bindir}
+	$(q)cp examples/ca/target/$(TARGET_HOST)/release/*-rs ${out-dir}${bindir}
 	$(echo) '  INSTALL ${out-dir}${libdir}/tee-supplicant/plugins/'
 	$(q)mkdir -p ${out-dir}${libdir}/tee-supplicant/plugins/
-	$(q)find examples/*/plugin/target/$(TARGET_HOST)/ -name *.plugin.so -exec cp {} ${out-dir}${libdir}/tee-supplicant/plugins/ \;
+	$(q)find examples/ca/target/$(TARGET_HOST)/ -name *.plugin.so -exec cp {} ${out-dir}${libdir}/tee-supplicant/plugins/ \;
 
 clean: examples-clean out-clean
 

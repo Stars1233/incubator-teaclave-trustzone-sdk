@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/signature_verification-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/signature_verification-rs/host/target/$TARGET_HOST/release/signature_verification-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/signature_verification-rs
 
 # Run script specific commands in QEMU
 OUTPUT=$(run_in_qemu_with_timeout_secs "signature_verification-rs" 20s) || print_detail_and_exit

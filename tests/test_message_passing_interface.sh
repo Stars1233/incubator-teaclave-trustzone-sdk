@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/message_passing_interface-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/message_passing_interface-rs/host/target/$TARGET_HOST/release/message_passing_interface-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/message_passing_interface-rs
 
 # Run script specific commands in QEMU
 OUTPUT=$(run_in_qemu "message_passing_interface-rs") || print_detail_and_exit

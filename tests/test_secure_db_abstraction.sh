@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/secure_db_abstraction-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/secure_db_abstraction-rs/host/target/$TARGET_HOST/release/secure_db_abstraction-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/secure_db_abstraction-rs
 
 # Run script specific commands in QEMU
 # IO could be much slower than expected

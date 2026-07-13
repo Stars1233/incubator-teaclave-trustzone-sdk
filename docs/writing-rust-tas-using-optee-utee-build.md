@@ -49,7 +49,7 @@ include!(concat!(env!("OUT_DIR"), "/user_ta_header.rs"));
 
 After that, everything finished, we can start building the TA now.
 
-For full codes, you can check the [`hello_world-rs example`](https://github.com/apache/teaclave-trustzone-sdk/tree/main/examples/hello_world-rs/ta)
+For full codes, you can check the [`hello_world-rs example`](https://github.com/apache/teaclave-trustzone-sdk/tree/main/examples/ta/hello_world-rs)
 
 ## Explaination of Minimal Example
 

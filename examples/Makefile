@@ -25,6 +25,12 @@ TARGET_TA ?= $(TARGET)
 FEATURES ?=
 CARGO_FLAGS ?=
 
+# All CA crates and all TA crates now share their respective workspace target
+# directories. Do not run multiple per-example Cargo commands concurrently,
+# because they may link or clean the same workspace artifacts at the same time.
+# Cargo still parallelizes compilation within each individual invocation.
+.NOTPARALLEL:
+
 # Define example categories based on std/no-std support
 # STD-only examples (require STD=y to build)
 STD_ONLY_EXAMPLES = \
@@ -83,20 +89,23 @@ common-examples: $(COMMON_EXAMPLES)
 
 # Individual example build rules
 $(STD_ONLY_EXAMPLES) $(NO_STD_ONLY_EXAMPLES) $(COMMON_EXAMPLES):
-	$(q)make -C $@ TARGET_HOST=$(TARGET_HOST) \
-		TARGET_TA=$(TARGET_TA) \
-		CROSS_COMPILE_HOST=$(CROSS_COMPILE_HOST) \
-		CROSS_COMPILE_TA=$(CROSS_COMPILE_TA) \
+	$(q)make -C ca/$@ TARGET=$(TARGET_HOST) \
+		CROSS_COMPILE=$(CROSS_COMPILE_HOST) \
+		OPTEE_CLIENT_EXPORT=$(OPTEE_CLIENT_EXPORT)
+	$(q)make -C ta/$@ TARGET=$(TARGET_TA) \
+		CROSS_COMPILE=$(CROSS_COMPILE_TA) \
 		TA_DEV_KIT_DIR=$(TA_DEV_KIT_DIR) \
-		OPTEE_CLIENT_EXPORT=$(OPTEE_CLIENT_EXPORT) \
 		FEATURES="$(FEATURES)" \
 		CARGO_FLAGS="$(CARGO_FLAGS)"
+	$(if $(filter supp_plugin-rs,$@),$(q)make -C ca/supp_plugin-rs-plugin TARGET=$(TARGET_HOST) CROSS_COMPILE=$(CROSS_COMPILE_HOST) OPTEE_CLIENT_EXPORT=$(OPTEE_CLIENT_EXPORT))
 
 # Clean targets
 clean: $(STD_ONLY_EXAMPLES_CLEAN) $(NO_STD_ONLY_EXAMPLES_CLEAN) $(COMMON_EXAMPLES_CLEAN)
 
 $(STD_ONLY_EXAMPLES_CLEAN) $(NO_STD_ONLY_EXAMPLES_CLEAN) $(COMMON_EXAMPLES_CLEAN):
-	$(q)make -C $(@:-clean=) clean
+	$(q)make -C ca/$(@:-clean=) clean
+	$(q)make -C ta/$(@:-clean=) clean
+	$(if $(filter supp_plugin-rs-clean,$@),$(q)make -C ca/supp_plugin-rs-plugin clean)
 
 # Help target
 help:

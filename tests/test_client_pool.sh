@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/client_pool-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/client_pool-rs/host/target/$TARGET_HOST/release/client_pool-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/client_pool-rs
 
 # Run script specific commands in QEMU
 OUTPUT1=$(run_in_qemu "client_pool-rs thread -p 2 -c 2 -t 500 -e 2000") || print_detail_and_exit

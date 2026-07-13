@@ -23,8 +23,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/secure_storage-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/secure_storage-rs/host/target/$TARGET_HOST/release/secure_storage-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/secure_storage-rs
 
 # Run script specific commands in QEMU
 # IO could be much slower than expected

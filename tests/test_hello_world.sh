@@ -22,8 +22,8 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/hello_world-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/hello_world-rs/host/target/$TARGET_HOST/release/hello_world-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/hello_world-rs
 
 # Run script specific commands in QEMU
 OUTPUT=$(run_in_qemu "hello_world-rs") || print_detail_and_exit

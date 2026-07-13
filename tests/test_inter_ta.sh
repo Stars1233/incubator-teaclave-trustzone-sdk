@@ -23,10 +23,10 @@ set -xe
 source setup.sh
 
 # Copy hello_world-rs TA for testing
-copy_ta_to_qemu ../examples/hello_world-rs/ta/target/$TARGET_TA/release/*.ta
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/inter_ta-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/inter_ta-rs/host/target/$TARGET_HOST/release/inter_ta-rs
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/inter_ta-rs
 
 # Run script specific commands in QEMU
 OUTPUT=$(run_in_qemu "inter_ta-rs") || print_detail_and_exit

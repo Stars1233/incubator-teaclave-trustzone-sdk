@@ -30,7 +30,7 @@ header:
     - 'KEYS'
     - 'DISCLAIMER'
     - '**/*.json'
-    - 'examples/tls_server-rs/ta/test-ca/**'
+    - 'examples/ta/tls_server-rs/test-ca/**'
     - '**/uuid.txt'
     - '**/plugin_uuid.txt'
     - '**/ta_uuid.txt'

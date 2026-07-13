@@ -24,12 +24,9 @@ Cargo.lock
 
 rust/
 
-# Allow tracking Cargo.lock in std examples
-!examples/message_passing_interface-rs/ta/Cargo.lock
-!examples/secure_db_abstraction-rs/ta/Cargo.lock
-!examples/serde-rs/ta/Cargo.lock
-!examples/tls_client-rs/ta/Cargo.lock
-!examples/tls_server-rs/ta/Cargo.lock
+# Allow tracking the consolidated examples workspace lock files
+!examples/ta/Cargo.lock
+!examples/ca/Cargo.lock
 !projects/web3/eth_wallet/ta/Cargo.lock
 
 # Allow tracking Cargo.lock for cargo-optee tool

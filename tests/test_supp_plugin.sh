@@ -23,9 +23,9 @@ set -xe
 source setup.sh
 
 # Copy TA and host binary
-copy_ta_to_qemu ../examples/supp_plugin-rs/ta/target/$TARGET_TA/release/*.ta
-copy_ca_to_qemu ../examples/supp_plugin-rs/host/target/$TARGET_HOST/release/supp_plugin-rs
-copy_plugin_to_qemu ../examples/supp_plugin-rs/plugin/target/$TARGET_HOST/release/*.plugin.so
+copy_ta_to_qemu ../examples/ta/target/$TARGET_TA/release/*.ta
+copy_ca_to_qemu ../examples/ca/target/$TARGET_HOST/release/supp_plugin-rs
+copy_plugin_to_qemu ../examples/ca/target/$TARGET_HOST/release/*.plugin.so
 
 # Run script specific commands in QEMU
 run_in_qemu "kill \$(pidof tee-supplicant)"
