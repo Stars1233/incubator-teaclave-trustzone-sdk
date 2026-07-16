@@ -31,7 +31,7 @@ cfg_block::cfg_block! {
         use std::io::{Read, Write};
     } else {
         extern crate alloc;
-        use optee_utee::net::{StdCompatConnect, StdCompatWrite, StdCompatRead};
+        use optee_utee::net::{StdCompatConnect, StdCompatRead, StdCompatWrite};
         use alloc::vec::Vec;
         use alloc::string::String;
     }

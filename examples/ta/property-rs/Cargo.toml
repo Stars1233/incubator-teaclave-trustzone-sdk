@@ -29,13 +29,13 @@ default = []
 std = ["optee-utee/std", "optee-utee-sys/std"]
 
 [dependencies]
-proto = { path = "../proto" }
-optee-utee-sys = { path = "../../../crates/optee-utee-sys" }
-optee-utee = { path = "../../../crates/optee-utee", features = ["unwind_stubs"] }
+proto = { workspace = true }
+optee-utee-sys = { workspace = true }
+optee-utee = { workspace = true, features = ["unwind_stubs"] }
 
 [build-dependencies]
-proto = { path = "../proto" }
-optee-utee-build = { path = "../../../crates/optee-utee-build" }
+proto = { workspace = true }
+optee-utee-build = { workspace = true }
 
 [package.metadata.optee.ta]
 uuid-path = "uuid.txt"

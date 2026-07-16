@@ -28,5 +28,5 @@ edition.workspace = true
 optee-utee-sys.workspace = true
 
 [build-dependencies]
-ctest = "0.5"
-cc = "1.2.19"
+ctest = { workspace = true }
+cc = { workspace = true }

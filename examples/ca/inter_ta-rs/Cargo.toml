@@ -25,6 +25,6 @@ description = "An example of Rust OP-TEE TrustZone SDK."
 edition = "2018"
 
 [dependencies]
-libc = "0.2.48"
-proto = { path = "../../ta/proto" }
-optee-teec = { path = "../../../crates/optee-teec" }
+libc = { workspace = true }
+proto = { workspace = true }
+optee-teec = { workspace = true }

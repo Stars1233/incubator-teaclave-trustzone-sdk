@@ -25,5 +25,5 @@ description = "Shared protocols for the Teaclave TrustZone SDK examples."
 edition = "2021"
 
 [dependencies]
-num_enum = { version = "0.7.3", default-features = false }
-serde = { version = "1.0.218", default-features = false, features = ["alloc", "derive"] }
+num_enum = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, features = ["alloc", "derive"] }

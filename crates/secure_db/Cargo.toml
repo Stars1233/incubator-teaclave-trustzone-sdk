@@ -28,7 +28,7 @@ publish = false
 optee-utee-sys.workspace = true
 optee-utee.workspace = true
 
-bincode = "1.3.3"
-anyhow = "1.0" 
+bincode = { workspace = true }
+anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-hashbrown = { version = "0.15.4", features = ["serde"] }
+hashbrown = { workspace = true, features = ["serde"] }

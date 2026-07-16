@@ -26,7 +26,7 @@ repository.workspace = true
 edition.workspace = true
 
 [dependencies]
-common = { path = "../common" }
+common = { workspace = true }
 proto = { workspace = true }
 optee-utee-sys = { workspace = true }
 optee-utee = { workspace = true }

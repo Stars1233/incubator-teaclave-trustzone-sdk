@@ -29,21 +29,21 @@ default = []
 std = ["optee-utee/std", "optee-utee-sys/std"]
 
 [dependencies]
-proto = { path = "../proto" }
-optee-utee-sys = { path = "../../../crates/optee-utee-sys", features = ["std"] }
-optee-utee = { path = "../../../crates/optee-utee", features = ["std"] }
+proto = { workspace = true }
+optee-utee-sys = { workspace = true, features = ["std"] }
+optee-utee = { workspace = true, features = ["std"] }
 
-rustls_provider = { path = "../../../crates/rustls_provider" }
-rustls = { version = "0.23.12", default-features = false, features = ["std"] }
-webpki-roots = "1"
-anyhow = "1.0"
+rustls_provider = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["std"] }
+webpki-roots = { workspace = true }
+anyhow = { workspace = true }
 
 # Add getrandom and enable its custom feature, see more details in main.rs
-getrandom = { version = "0.2", default-features = false, features = ["custom"] }
+getrandom = { workspace = true, default-features = false, features = ["custom"] }
 
 [build-dependencies]
-proto = { path = "../proto" }
-optee-utee-build = { path = "../../../crates/optee-utee-build" }
+proto = { workspace = true }
+optee-utee-build = { workspace = true }
 
 [package.metadata.optee.ta]
 uuid-path = "uuid.txt"

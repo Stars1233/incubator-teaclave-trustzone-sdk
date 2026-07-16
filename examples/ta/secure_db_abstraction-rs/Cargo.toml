@@ -29,17 +29,17 @@ default = []
 std = ["optee-utee/std", "optee-utee-sys/std"]
 
 [dependencies]
-proto = { path = "../proto" }
-optee-utee-sys = { path = "../../../crates/optee-utee-sys", features = ["std"] }
-optee-utee = { path = "../../../crates/optee-utee", features = ["std"] }
-secure_db = { path = "../../../crates/secure_db" }
+proto = { workspace = true }
+optee-utee-sys = { workspace = true, features = ["std"] }
+optee-utee = { workspace = true, features = ["std"] }
+secure_db = { workspace = true }
 
-anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 
 [build-dependencies]
-proto = { path = "../proto" }
-optee-utee-build = { path = "../../../crates/optee-utee-build" }
+proto = { workspace = true }
+optee-utee-build = { workspace = true }
 
 [package.metadata.optee.ta]
 uuid-path = "uuid.txt"

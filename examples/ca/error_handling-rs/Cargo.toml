@@ -25,6 +25,6 @@ description = "A test of Teaclave SDK's error handling  capabilities"
 edition = "2018"
 
 [dependencies]
-libc = "0.2.48"
-proto = { path = "../../ta/proto" }
-optee-teec = { path = "../../../crates/optee-teec" }
+libc = { workspace = true }
+proto = { workspace = true }
+optee-teec = { workspace = true }

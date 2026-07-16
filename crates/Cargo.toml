@@ -49,17 +49,31 @@ optee-utee = { version = "0.9.0", path = "optee-utee" }
 optee-utee-macros = { version = "0.9.0", path = "optee-utee-macros" }
 optee-utee-sys = { version = "0.9.0", path = "optee-utee-sys" }
 
-bitflags = "2.11.0"
+bitflags = "2.13.1"
 num_enum = { version = "0.7.6", default-features = false }
 uuid = { version = "1.23", default-features = false }
-hex = { version = "0.4", default-features = false, features = ["alloc"] }
-quote = "1.0"
-syn = { version = "2.0", features = ["full"] }
-proc-macro2 = "1.0.92"
-libc = "0.2" 
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+quote = "1.0.46"
+syn = { version = "2.0.117", features = ["full"] }
+proc-macro2 = "1.0.106"
+libc = "0.2.184"
 rand = "0.10"
-once_cell = "1.20.2"
+once_cell = "1.21.4"
 serde = { version = "1.0.228" }
 serde_json = { version = "1.0.149" }
 log = "0.4.29"
 document-features = "0.2.12"
+ctest = "0.5.1"
+cc = "1.2.67"
+prettyplease = "0.2.37"
+libc_alloc = "1.0.7"
+strum = { version = "0.28", default-features = false }
+mockall = "0.15.0"
+rustls = { version = "0.23.37", default-features = false }
+rustls-rustcrypto = "0.0.2-alpha"
+getrandom = { version = "0.2.17", default-features = false }
+base64ct = "1.8.3"
+ed25519-dalek = "2.2.0"
+bincode = "1.3.3"
+anyhow = "1.0.103"
+hashbrown = "0.15.5"

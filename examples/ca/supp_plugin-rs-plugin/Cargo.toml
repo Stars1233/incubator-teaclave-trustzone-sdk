@@ -25,15 +25,15 @@ description = "An example of Rust OP-TEE TrustZone SDK."
 edition = "2018"
 
 [dependencies]
-libc = "0.2.48"
-proto = { path = "../../ta/proto" }
-optee-teec = { path = "../../../crates/optee-teec", features = ["macros"] }
+libc = { workspace = true }
+proto = { workspace = true }
+optee-teec = { workspace = true, features = ["macros"] }
 
 [build-dependencies]
-optee-teec-build = { path = "../../../crates/optee-teec-build" }
-uuid = { version = "1.23" }
-proto = { path = "../../ta/proto" }
-anyhow = "1.0"
+optee-teec-build = { workspace = true }
+uuid = { workspace = true }
+proto = { workspace = true }
+anyhow = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]
