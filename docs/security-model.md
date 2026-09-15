@@ -83,10 +83,10 @@ validated it.
 ```
    NORMAL WORLD (untrusted)              ││            SECURE WORLD (trusted)
                                          ││
-  ┌──────────────┐   TEEC_InvokeCommand  ││  TA_InvokeCommandEntryPoint
-  │  CA / Rich   │ ────────────────────► ││ ──────────────────────────►  TA logic
-  │  OS (root)   │   params + shared mem ││  Parameters / ParamMemref     (your code)
-  └──────────────┘                       ││
+   ┌──────────────┐   TEEC_InvokeCommand  ││  TA_InvokeCommandEntryPoint
+   │  CA / Rich   │ ────────────────────► ││ ──────────────────────────►  TA logic
+   │  OS (root)   │   params + shared mem ││  typed params                 (your code)
+   └──────────────┘                       ││  (ParametersAny / wrappers)
                             TRUST BOUNDARY ↑↑
               (params, pointers, lengths, buffer contents
                are all attacker-controlled and may mutate
@@ -94,39 +94,47 @@ validated it.
 ```
 
 In this SDK the boundary is crossed through the entry-point macros in
-`optee-utee` (`#[ta_invoke_command]`, `#[ta_open_session]`, etc.), which hand
-your TA a `Parameters` struct built from the raw `TEE_Param` array.
+`optee-utee` (`#[ta_invoke_command]`, `#[ta_open_session]`, etc.), which
+convert the raw `TEE_Param` array into direction-typed wrappers — either a
+concrete 4-tuple such as `(ParameterMemrefInput<'_>, ...)` or the
+type-erased `ParametersAny<'_>` — before your TA logic runs.
 
 ### Parameter trust, by type
 
-`crates/optee-utee/src/parameter.rs` exposes the GlobalPlatform parameter types:
+`crates/optee-utee/src/parameter/` exposes the GlobalPlatform parameter types
+(see `docs/optee-utee-parameter-migration.md`):
 
-- **`ValueInput` / `ValueInout`** — two `u32` registers (`a`, `b`) passed by
-  value. Untrusted *content*, but bounded in size and not aliased to Normal-World
-  memory. Validate the values; there is no pointer/length to worry about.
-- **`MemrefInput` / `MemrefInout` / `MemrefOutput`** — a **shared-memory
-  reference**: a `{buffer, size}` pair (`raw::Memref`). This is the high-risk
-  case. `ParamMemref::buffer()` (`parameter.rs:79`) constructs a Rust slice
-  directly over the Normal-World-supplied pointer and size:
+- **`ParameterValueInput` / `ParameterValueInout` / `ParameterValueOutput`** —
+  two `u32` registers read via `get_a()`/`get_b()` (written via `set_a()`/
+  `set_b()`). Untrusted *content*, but bounded in size and not aliased to
+  Normal-World memory. Validate the values; there is no pointer/length to
+  worry about.
+- **`ParameterMemrefInput` / `ParameterMemrefInout` / `ParameterMemrefOutput`**
+  — a **shared-memory reference**: a `{buffer, size}` pair (`raw::Memref`).
+  This is the high-risk case. The typed API is copy-based: reads go through
+  `ParameterMemrefRead::read_to_vec` (whole buffer) / `read_at` (partial
+  range) and writes through `ParameterMemrefWrite::set_output` / `write_at`,
+  with the shared length exposed as `ParameterMemref::buffer_len`. The typed
+  API never hands out a TA-side reference into shared memory.
 
-  ```rust
-  pub fn buffer(&mut self) -> &mut [u8] {
-      unsafe { slice::from_raw_parts_mut((*self.raw).buffer as *mut u8, (*self.raw).size) }
-  }
-  ```
-
-  OP-TEE core guarantees this pointer refers to memory the caller is allowed to
+  OP-TEE core guarantees the pointer refers to memory the caller is allowed to
   share (so it cannot be used to read arbitrary secure memory), but **the
   contents and the length are attacker-chosen, and the backing memory remains
   mapped and writable by the Normal World for the duration of the call.**
+
+  (The legacy `deprecated::ParamMemref::buffer()` accessor, which constructs a
+  Rust slice directly over the Normal-World pointer, remains for transitional
+  code but must not be used in new code.)
 
 ### Boundary invariants the TA must enforce
 
 These are obligations on **TA code**, not provided automatically:
 
 1. **Validate `param_types` first.** Confirm each slot is the type you expect
-   before interpreting it. `as_value`/`as_memref` return `BadParameters` on a
-   type mismatch — propagate that, do not bypass it.
+   before interpreting it. A concrete tuple is validated up front by the
+   entry-point macros; `ParameterAny` branch accessors (`as_value_input`,
+   `as_memref_input`, ...) return `BadParameters` on a type mismatch —
+   propagate that, do not bypass it.
 2. **Treat every byte of a memref as adversarial input.** Length, encoding, and
    structure must all be checked. Never assume a buffer is NUL-terminated, well-
    formed, or non-empty.
@@ -135,7 +143,8 @@ These are obligations on **TA code**, not provided automatically:
 4. **Copy-then-validate to avoid TOCTOU.** Because the Normal World can mutate a
    shared buffer concurrently, copy untrusted input into secure memory **once**
    before validating and using it. Do not read the same shared field twice and
-   assume it is unchanged (a "double fetch"). Treat `MemrefInput` as read-once.
+   assume it is unchanged (a "double fetch"). Treat `ParameterMemrefInput` as
+   read-once.
 5. **Do not leak secrets through `*Output` / `*Inout` buffers.** Anything written
    to an output memref becomes visible to the Normal World. Write only what the
    caller is authorized to learn; size outputs deliberately and set the updated
@@ -276,8 +285,11 @@ To keep findings high-signal:
 
 **Where real findings concentrate**
 - TA entry points and anything reachable from them that reads `Parameters`.
-- Every `ParamMemref::buffer()` use: is the length bounded? Is the content
-  validated? Is it read exactly once (no double-fetch / TOCTOU)?
+- Every memref read: is the length bounded (`buffer_len` checked before use)?
+  Is untrusted input copied via `read_to_vec`/`read_at` and validated on the
+  copied bytes (no double-fetch / TOCTOU)? Any remaining
+  `deprecated::ParamMemref::buffer()` use hands out a shared slice and needs
+  explicit justification for the same bar.
 - `unsafe` blocks in `optee-utee` and the `*-sys` crates that dereference
   caller-supplied pointers or lengths.
 - Deserialization inside a TA of `proto`/shared structures.

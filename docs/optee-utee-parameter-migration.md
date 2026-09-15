@@ -33,7 +33,7 @@ not visible in the Rust type.
 The new API makes the expected direction explicit:
 
 ```rust
-let input = p0.as_memref_input()?.get_buffer();
+let input = p0.as_memref_input()?.read_to_vec();
 let output = p1.as_memref_output()?;
 output.set_output(bytes)?;
 ```
@@ -61,7 +61,7 @@ use optee_utee::{ErrorKind, Result};
 
 The prelude exports the TA entry-point macros, `ParametersAny`,
 `ParametersNone`, all typed parameter wrappers, and the read/write traits needed
-for methods such as `get_buffer`, `get_a`, and `set_output`.
+for methods such as `read_to_vec`, `read_at`, `get_a`, and `set_output`.
 
 ## Parameter Directions
 
@@ -127,8 +127,8 @@ fn invoke_command(
         ParameterNone,
     ),
 ) -> Result<()> {
-    let bytes = input.get_buffer();
-    let response = handle_request(Command::from(cmd_id), bytes)?;
+    let bytes = input.read_to_vec();
+    let response = handle_request(Command::from(cmd_id), &bytes)?;
     output.set_output(response)
 }
 ```
@@ -147,16 +147,17 @@ specific type they expect.
 fn invoke_command(cmd_id: u32, (p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     match Command::from(cmd_id) {
         Command::Update => {
-            let input = p0.as_memref_input()?.get_buffer();
-            digest_update(input);
+            let input = p0.as_memref_input()?.read_to_vec();
+            digest_update(&input);
             Ok(())
         }
         Command::DoFinal => {
-            let input = p0.as_memref_input()?.get_buffer();
+            let input = p0.as_memref_input()?.read_to_vec();
             let output = p1.as_memref_output()?;
-            let size = digest_final(input, output.get_buffer_mut())?;
+            let mut out_buf = vec![0u8; output.buffer_len()];
+            let size = digest_final(&input, &mut out_buf)?;
             p2.as_value_output()?.set_a(size as u32);
-            output.set_updated_size(size)
+            output.set_output(&out_buf[..size])
         }
         _ => Err(ErrorKind::BadParameters.into()),
     }
@@ -218,8 +219,21 @@ let input = p0.buffer();
 New code for an input memref:
 
 ```rust
-let input = p0.as_memref_input()?.get_buffer();
+let input = p0.as_memref_input()?.read_to_vec();
 ```
+
+Use `read_at` when only part of the buffer is needed. It returns the number
+of bytes actually read, truncated at the end of the buffer (`BadParameters`
+if `offset` is beyond the end):
+
+```rust
+let mut header = [0u8; 8];
+let n = p0.as_memref_input()?.read_at(0, &mut header)?;
+```
+
+`read_to_vec` allocates a host-sized heap buffer, so prefer `read_at`
+into a stack array for fixed-size fields, and bound `buffer_len()` before
+copying variable-size input you are not willing to allocate in full.
 
 Old code for output:
 
@@ -246,23 +260,26 @@ output.write_at(0, header)?;
 output.write_at(header.len(), body)?;
 ```
 
-Use `get_buffer_mut` when an API writes directly into the output buffer:
+When an API needs a scratch buffer it can write into, copy the result out afterwards:
 
 ```rust
+let input = p0.as_memref_input()?.read_to_vec();
 let output = p1.as_memref_output()?;
-let written = cipher.update(input.get_buffer(), output.get_buffer_mut())?;
-output.set_updated_size(written)
+let mut tmp = vec![0u8; output.buffer_len()];
+let written = cipher.update(&input, &mut tmp)?;
+output.set_output(&tmp[..written])
 ```
 
-When using `get_buffer_mut`, always call `set_updated_size` afterward.
-Otherwise the client application may observe an incorrect output size.
+`set_output` copies and updates the size in one step. `set_updated_size`
+should only be used after `write_at` if manual size handling is needed.
 
 The memref traits are:
 
 | Operation | Trait | Implemented by |
 | --- | --- | --- |
-| `get_buffer` | `ParameterMemrefRead` | `ParameterMemrefInput`, `ParameterMemrefInout` |
-| `get_buffer_mut`, `set_updated_size`, `set_output`, `write_at` | `ParameterMemrefWrite` | `ParameterMemrefOutput`, `ParameterMemrefInout` |
+| `buffer_len` | `ParameterMemref` | `ParameterMemrefInput`, `ParameterMemrefOutput`, `ParameterMemrefInout` |
+| `read_to_vec`, `read_at` | `ParameterMemrefRead` | `ParameterMemrefInput`, `ParameterMemrefInout` |
+| `set_updated_size`, `set_output`, `write_at` | `ParameterMemrefWrite` | `ParameterMemrefOutput`, `ParameterMemrefInout` |
 
 ## Open Session Parameters
 
@@ -291,11 +308,12 @@ fn open_session(
         ParameterNone,
     ),
 ) -> Result<()> {
-    let learning_rate = f64::from_le_bytes(
-        p0.get_buffer()
-            .try_into()
-            .map_err(|_| ErrorKind::BadParameters)?,
-    );
+    // Single TA-owned copy, then validate/use it to avoid TOCTOU.
+    let buf = p0.read_to_vec();
+    let lr_bytes: [u8; 8] = buf
+        .try_into()
+        .map_err(|_| ErrorKind::BadParameters)?;
+    let learning_rate = f64::from_le_bytes(lr_bytes);
     init(learning_rate)
 }
 ```
@@ -414,9 +432,8 @@ fn invoke_command(
    `get_b()` on the correct value wrapper.
 7. Replace `set_a()` and `set_b()` on old `ParamValue` with the same methods on
    `ParameterValueOutput` or `ParameterValueInout`.
-8. Replace `as_memref()?.buffer()` reads with `get_buffer()`.
-9. Replace manual output-buffer copies with `set_output`, `write_at`, or
-   `get_buffer_mut` plus `set_updated_size`.
+8. Replace `as_memref()?.buffer()` reads with `read_to_vec()` or `read_at()`.
+9. Replace manual output-buffer copies with `set_output` or `write_at`.
 10. Ensure every unused slot is represented as `ParameterNone`, not omitted.
 
 ## Common Errors
@@ -438,9 +455,9 @@ function. Check the complete tuple, including the unused slots.
 
 ### Output Size Is Wrong for the Client Application
 
-If TA code writes through `get_buffer_mut`, it must call `set_updated_size`.
-Prefer `set_output` when possible because it copies and updates the size in one
-step.
+Prefer `set_output`/`write_at` because they copy and update the size in one
+step. If `set_updated_size` is used, ensure it is called with the exact number
+of bytes produced.
 
 ### Input/Output Direction Is Ambiguous
 
