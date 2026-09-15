@@ -70,8 +70,8 @@ pub use parameter::{
     FromRawParameter, FromRawParameters, ParamType, ParameterAny, ParametersAny, ParametersNone,
     RawParamType, RawParamTypes, RawParams, deprecated,
     memref::{
-        ParameterMemrefInout, ParameterMemrefInput, ParameterMemrefOutput, ParameterMemrefRead,
-        ParameterMemrefWrite,
+        ParameterMemref, ParameterMemrefInout, ParameterMemrefInput, ParameterMemrefOutput,
+        ParameterMemrefRead, ParameterMemrefWrite,
     },
     none::ParameterNone,
     value::{
@@ -107,7 +107,7 @@ pub use optee_utee_sys as raw;
 
 pub mod prelude {
     pub use crate::{
-        FromRawParameter, FromRawParameters, ParameterAny, ParameterMemrefInout,
+        FromRawParameter, FromRawParameters, ParameterAny, ParameterMemref, ParameterMemrefInout,
         ParameterMemrefInput, ParameterMemrefOutput, ParameterMemrefRead, ParameterMemrefWrite,
         ParameterNone, ParameterValueInout, ParameterValueInput, ParameterValueOutput,
         ParameterValueRead, ParameterValueWrite, ParametersAny, ParametersNone, ta_close_session,

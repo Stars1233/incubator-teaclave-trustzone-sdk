@@ -23,6 +23,7 @@
 //!
 //! This module provides:
 //!
+//! * [`ParameterMemref`] trait for the shared buffer length.
 //! * [`ParameterMemrefRead`] trait for reading the buffer contents.
 //! * [`ParameterMemrefWrite`] trait for writing into buffers and
 //!   reporting updated sizes.
@@ -52,10 +53,28 @@
 use super::{FromRawParameter, ParamType, RawParamType, check_type_is};
 use crate::{ErrorKind, Result, raw::TEE_Param};
 
+/// Shared buffer length for a memory-reference parameter.
+///
+/// Implemented by [`ParameterMemrefInput`], [`ParameterMemrefOutput`],
+/// and [`ParameterMemrefInout`]. This is the supertrait of
+/// [`ParameterMemrefRead`] and [`ParameterMemrefWrite`].
+///
+/// The value is the size the host supplied for the shared buffer. OP-TEE
+/// validates this range against the caller's shared memory when the TA is
+/// invoked, and the accessors in this module bound every read and write by
+/// this size, so they cannot access past the host-supplied buffer. For output
+/// and in/out parameters the size reported back to the host is updated
+/// separately through [`ParameterMemrefWrite::set_updated_size`]; `buffer_len`
+/// keeps returning the original host-supplied size.
+pub trait ParameterMemref {
+    /// Returns the size of the shared buffer as supplied by the host, in bytes.
+    fn buffer_len(&self) -> usize;
+}
+
 /// Read-only access to a memory-reference parameter's buffer.
 ///
 /// Implemented by [`ParameterMemrefInput`] and [`ParameterMemrefInout`].
-pub trait ParameterMemrefRead {
+pub trait ParameterMemrefRead: ParameterMemref {
     /// Returns the buffer contents as a byte slice.
     ///
     /// For `ParameterMemrefInput` the length is the original buffer size as
@@ -76,6 +95,10 @@ pub trait ParameterMemrefRead {
     }
 
     /// Copies the shared buffer into TA-owned memory.
+    ///
+    /// The allocation is sized from the host-supplied `buffer_len`. Callers
+    /// that cannot accept an allocation of that size should bound
+    /// `buffer_len` first, or read fixed-size fields with [`Self::read_at`].
     fn read_to_vec(&self) -> alloc::vec::Vec<u8> {
         let len = self.buffer_len();
         let mut copy = alloc::vec![0; len];
@@ -90,16 +113,12 @@ pub trait ParameterMemrefRead {
     /// Returns the start of the shared input buffer.
     #[doc(hidden)]
     fn buffer_ptr(&self) -> *const u8;
-
-    /// Returns the length of the shared input buffer.
-    #[doc(hidden)]
-    fn buffer_len(&self) -> usize;
 }
 
 /// Write access to a memory-reference parameter's buffer.
 ///
 /// Implemented by [`ParameterMemrefOutput`] and [`ParameterMemrefInout`].
-pub trait ParameterMemrefWrite {
+pub trait ParameterMemrefWrite: ParameterMemref {
     /// Returns a mutable byte slice representing the output buffer.
     ///
     /// After writing to the returned buffer, call
@@ -117,18 +136,15 @@ pub trait ParameterMemrefWrite {
     /// [`Self::write_at`] for write-only access; copy data into TA-owned memory
     /// before validating or otherwise relying on bytes read from this slice.
     unsafe fn get_buffer_mut(&mut self) -> &mut [u8] {
-        let capacity = self.get_capacity();
-        unsafe { core::slice::from_raw_parts_mut(self.buffer_ptr(), capacity) }
+        let len = self.buffer_len();
+        unsafe { core::slice::from_raw_parts_mut(self.buffer_ptr(), len) }
     }
-
-    /// Returns the maximum allowed buffer size (capacity).
-    fn get_capacity(&self) -> usize;
 
     /// Sets the updated size after bounds checking.
     ///
-    /// Returns `ErrorKind::ShortBuffer` if `size > get_capacity()`.
+    /// Returns `ErrorKind::ShortBuffer` if `size > buffer_len()`.
     fn set_updated_size(&mut self, size: usize) -> Result<()> {
-        if size > self.get_capacity() {
+        if size > self.buffer_len() {
             return Err(ErrorKind::ShortBuffer.into());
         }
         unsafe { self.set_updated_size_unchecked(size) };
@@ -150,7 +166,7 @@ pub trait ParameterMemrefWrite {
         let new_size = offset
             .checked_add(input.len())
             .ok_or(ErrorKind::ShortBuffer)?;
-        if new_size > self.get_capacity() {
+        if new_size > self.buffer_len() {
             return Err(ErrorKind::ShortBuffer.into());
         }
         if !input.is_empty() {
@@ -174,7 +190,7 @@ pub trait ParameterMemrefWrite {
     ///
     /// # Safety
     ///
-    /// The `size` must not exceed `get_capacity()`. Prefer
+    /// The `size` must not exceed `buffer_len()`. Prefer
     /// [`ParameterMemrefWrite::set_updated_size`] unless the caller has already
     /// checked the bounds.
     unsafe fn set_updated_size_unchecked(&mut self, size: usize);
@@ -239,10 +255,25 @@ impl<'a> FromRawParameter<'a> for ParameterMemrefOutput<'a> {
     }
 }
 
-impl<'a> ParameterMemrefWrite for ParameterMemrefInout<'a> {
-    fn get_capacity(&self) -> usize {
+impl<'a> ParameterMemref for ParameterMemrefInout<'a> {
+    fn buffer_len(&self) -> usize {
         self.capacity
     }
+}
+
+impl<'a> ParameterMemref for ParameterMemrefOutput<'a> {
+    fn buffer_len(&self) -> usize {
+        self.capacity
+    }
+}
+
+impl<'a> ParameterMemref for ParameterMemrefInput<'a> {
+    fn buffer_len(&self) -> usize {
+        unsafe { self.0.memref.size }
+    }
+}
+
+impl<'a> ParameterMemrefWrite for ParameterMemrefInout<'a> {
     fn buffer_ptr(&mut self) -> *mut u8 {
         unsafe { self.raw_param.memref.buffer as *mut u8 }
     }
@@ -252,9 +283,6 @@ impl<'a> ParameterMemrefWrite for ParameterMemrefInout<'a> {
 }
 
 impl<'a> ParameterMemrefWrite for ParameterMemrefOutput<'a> {
-    fn get_capacity(&self) -> usize {
-        self.capacity
-    }
     fn buffer_ptr(&mut self) -> *mut u8 {
         unsafe { self.raw_param.memref.buffer as *mut u8 }
     }
@@ -267,17 +295,11 @@ impl<'a> ParameterMemrefRead for ParameterMemrefInout<'a> {
     fn buffer_ptr(&self) -> *const u8 {
         unsafe { self.raw_param.memref.buffer as *const u8 }
     }
-    fn buffer_len(&self) -> usize {
-        self.capacity
-    }
 }
 
 impl<'a> ParameterMemrefRead for ParameterMemrefInput<'a> {
     fn buffer_ptr(&self) -> *const u8 {
         unsafe { self.0.memref.buffer as *const u8 }
-    }
-    fn buffer_len(&self) -> usize {
-        unsafe { self.0.memref.size }
     }
 }
 
