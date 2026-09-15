@@ -21,10 +21,12 @@
 extern crate alloc;
 
 use optee_utee::prelude::*;
-use optee_utee::{AE, AlgorithmId, OperationMode};
+use optee_utee::{AlgorithmId, OperationMode, AE};
 use optee_utee::{AttributeId, AttributeMemref, TransientObject, TransientObjectType};
 use optee_utee::{ErrorKind, Result};
-use proto::authentication::{AAD_LEN, BUFFER_SIZE, Command, KEY_SIZE, Mode, TAG_LEN};
+use proto::authentication::{Command, Mode, AAD_LEN, BUFFER_SIZE, KEY_SIZE, TAG_LEN};
+
+use alloc::vec;
 
 pub const PAYLOAD_NUMBER: usize = 2;
 
@@ -90,28 +92,28 @@ pub fn prepare(ae: &mut AEOp, (p0, p1, p2, p3): &mut ParametersAny<'_>) -> Resul
         Mode::Decrypt => OperationMode::Decrypt,
         _ => OperationMode::IllegalValue,
     };
-    let nonce = unsafe { p1.as_memref_input()?.get_buffer() };
-    let key = unsafe { p2.as_memref_input()?.get_buffer() };
-    let aad = unsafe { p3.as_memref_input()?.get_buffer() };
+    let nonce = p1.as_memref_input()?.read_to_vec();
+    let key = p2.as_memref_input()?.read_to_vec();
+    let aad = p3.as_memref_input()?.read_to_vec();
 
     ae.op = AE::allocate(AlgorithmId::AesCcm, mode, KEY_SIZE * 8)?;
 
     let mut key_object = TransientObject::allocate(TransientObjectType::Aes, KEY_SIZE * 8)?;
-    let attr = AttributeMemref::from_ref(AttributeId::SecretValue, key);
+    let attr = AttributeMemref::from_ref(AttributeId::SecretValue, &key);
     key_object.populate(&[attr.into()])?;
     ae.op.set_key(&key_object)?;
     ae.op
-        .init(nonce, TAG_LEN * 8, AAD_LEN, BUFFER_SIZE * PAYLOAD_NUMBER)?;
-    ae.op.update_aad(aad);
+        .init(&nonce, TAG_LEN * 8, AAD_LEN, BUFFER_SIZE * PAYLOAD_NUMBER)?;
+    ae.op.update_aad(&aad);
     Ok(())
 }
 
 pub fn update(digest: &mut AEOp, (p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
     let (p0, p1) = (p0.as_memref_input()?, p1.as_memref_output()?);
-    let size = digest
-        .op
-        .update(unsafe { p0.get_buffer() }, unsafe { p1.get_buffer_mut() })?;
-    p1.set_updated_size(size)?;
+    let input = p0.read_to_vec();
+    let mut out_buf = vec![0u8; p1.buffer_len()];
+    let size = digest.op.update(&input, &mut out_buf)?;
+    p1.set_output(&out_buf[..size])?;
     Ok(())
 }
 
@@ -122,13 +124,14 @@ pub fn encrypt_final(digest: &mut AEOp, (p0, p1, p2, _): &mut ParametersAny<'_>)
         p2.as_memref_output()?,
     );
 
-    let (ciph_len, tag_len) = digest.op.encrypt_final(
-        unsafe { p0.get_buffer() },
-        unsafe { p1.get_buffer_mut() },
-        unsafe { p2.get_buffer_mut() },
-    )?;
-    p1.set_updated_size(ciph_len)?;
-    p2.set_updated_size(tag_len)?;
+    let input = p0.read_to_vec();
+    let mut ciph_buf = vec![0u8; p1.buffer_len()];
+    let mut tag_buf = vec![0u8; p2.buffer_len()];
+    let (ciph_len, tag_len) = digest
+        .op
+        .encrypt_final(&input, &mut ciph_buf, &mut tag_buf)?;
+    p1.set_output(&ciph_buf[..ciph_len])?;
+    p2.set_output(&tag_buf[..tag_len])?;
     Ok(())
 }
 
@@ -139,12 +142,11 @@ pub fn decrypt_final(digest: &mut AEOp, (p0, p1, p2, _): &mut ParametersAny<'_>)
         p2.as_memref_input()?,
     );
 
-    let len = digest.op.decrypt_final(
-        unsafe { p0.get_buffer() },
-        unsafe { p1.get_buffer_mut() },
-        unsafe { p2.get_buffer() },
-    )?;
-    p1.set_updated_size(len)?;
+    let input = p0.read_to_vec();
+    let tag = p2.read_to_vec();
+    let mut out_buf = vec![0u8; p1.buffer_len()];
+    let len = digest.op.decrypt_final(&input, &mut out_buf, &tag)?;
+    p1.set_output(&out_buf[..len])?;
     Ok(())
 }
 

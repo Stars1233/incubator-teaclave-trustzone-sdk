@@ -59,8 +59,7 @@ fn invoke_command(cmd_id: u32, params: &mut ParametersAny<'_>) -> Result<()> {
 }
 
 pub fn delete_object((p0, _, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    // use to_vec to copy into tee memory
-    let obj_id = unsafe { p0.as_memref_input()?.get_buffer() }.to_vec();
+    let obj_id = p0.as_memref_input()?.read_to_vec();
 
     match PersistentObject::open(
         ObjectStorageConstants::Private,
@@ -77,9 +76,8 @@ pub fn delete_object((p0, _, _, _): &mut ParametersAny<'_>) -> Result<()> {
 }
 
 pub fn create_raw_object((p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    // use to_vec to copy into tee memory
-    let obj_id = unsafe { p0.as_memref_input()?.get_buffer() }.to_vec();
-    let data_buffer = unsafe { p1.as_memref_input()?.get_buffer() }.to_vec();
+    let obj_id = p0.as_memref_input()?.read_to_vec();
+    let data_buffer = p1.as_memref_input()?.read_to_vec();
 
     let obj_data_flag = DataFlag::ACCESS_READ
         | DataFlag::ACCESS_WRITE
@@ -105,8 +103,7 @@ pub fn create_raw_object((p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
 }
 
 pub fn read_raw_object((p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    // use to_vec to copy into tee memory
-    let obj_id = unsafe { p0.as_memref_input()?.get_buffer() }.to_vec();
+    let obj_id = p0.as_memref_input()?.read_to_vec();
     let p1 = p1.as_memref_output()?;
 
     let mut object = PersistentObject::open(
@@ -116,7 +113,7 @@ pub fn read_raw_object((p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
     )?;
     let obj_info = object.info()?;
     let data_size = obj_info.data_size();
-    if p1.get_capacity() < data_size {
+    if p1.buffer_len() < data_size {
         return Err(ErrorKind::ShortBuffer.into());
     }
 

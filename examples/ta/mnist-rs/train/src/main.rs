@@ -19,7 +19,7 @@
 #![no_main]
 extern crate alloc;
 
-use burn::backend::{Autodiff, NdArray, ndarray::NdArrayDevice};
+use burn::backend::{ndarray::NdArrayDevice, Autodiff, NdArray};
 use optee_utee::prelude::*;
 use optee_utee::{ErrorKind, Result};
 use proto::mnist::train::Command;
@@ -47,11 +47,10 @@ fn open_session(
         ParameterNone,
     ),
 ) -> Result<()> {
-    let learning_rate =
-        f64::from_le_bytes(unsafe { p0.get_buffer() }.try_into().map_err(|err| {
-            trace_println!("bad parameter {:?}", err);
-            ErrorKind::BadParameters
-        })?);
+    let learning_rate = f64::from_le_bytes(p0.read_to_vec().try_into().map_err(|err| {
+        trace_println!("bad parameter {:?}", err);
+        ErrorKind::BadParameters
+    })?);
     trace_println!("Initialize with learning_rate: {}", learning_rate);
 
     let mut trainer = TRAINER.lock();
@@ -74,14 +73,16 @@ fn destroy() {
 fn invoke_command(cmd_id: u32, (p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     match Command::try_from(cmd_id) {
         Ok(Command::Train) => {
-            let images = unsafe { p0.as_memref_input()?.get_buffer() };
-            let labels = unsafe { p1.as_memref_input()?.get_buffer() };
+            let images = p0.as_memref_input()?.read_to_vec();
+            let labels = p1.as_memref_input()?.read_to_vec();
 
+            let images: &[proto::mnist::Image] =
+                bytemuck::try_cast_slice(&images).map_err(|_| ErrorKind::BadParameters)?;
             let mut trainer = TRAINER.lock();
             let result = trainer
                 .as_mut()
                 .ok_or(ErrorKind::CorruptObject)?
-                .train(bytemuck::cast_slice(images), labels);
+                .train(images, &labels);
             let bytes = serde_json::to_vec(&result).map_err(|err| {
                 trace_println!("unexpected error: {:?}", err);
                 ErrorKind::BadState
@@ -89,14 +90,16 @@ fn invoke_command(cmd_id: u32, (p0, p1, p2, _): &mut ParametersAny<'_>) -> Resul
             p2.as_memref_output()?.set_output(bytes)
         }
         Ok(Command::Valid) => {
-            let images = unsafe { p0.as_memref_input()?.get_buffer() };
-            let labels = unsafe { p1.as_memref_input()?.get_buffer() };
+            let images = p0.as_memref_input()?.read_to_vec();
+            let labels = p1.as_memref_input()?.read_to_vec();
 
+            let images: &[proto::mnist::Image] =
+                bytemuck::try_cast_slice(&images).map_err(|_| ErrorKind::BadParameters)?;
             let trainer = TRAINER.lock();
             let result = trainer
                 .as_ref()
                 .ok_or(ErrorKind::CorruptObject)?
-                .valid(bytemuck::cast_slice(images), labels);
+                .valid(images, &labels);
 
             let bytes = serde_json::to_vec(&result).map_err(|err| {
                 trace_println!("unexpected error: {:?}", err);

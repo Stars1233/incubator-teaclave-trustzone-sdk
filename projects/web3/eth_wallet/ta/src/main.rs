@@ -151,7 +151,8 @@ fn invoke_command(
     dbg_println!("[+] TA invoke command");
 
     p1.set_updated_size(0)?;
-    let output_vec = match handle_invoke(Command::from(cmd_id), unsafe { p0.get_buffer() }) {
+    let input = p0.read_to_vec();
+    let output_vec = match handle_invoke(Command::from(cmd_id), &input) {
         Ok(output) => output,
         Err(e) => {
             let err_message = format!("{:?}", e);

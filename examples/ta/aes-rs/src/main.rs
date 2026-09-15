@@ -135,14 +135,14 @@ pub fn alloc_resources(aes: &mut AesCipher, (p0, p1, p2, _): &mut ParametersAny<
 }
 
 pub fn set_aes_key(aes: &mut AesCipher, (p0, _, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    let key = unsafe { p0.as_memref_input()?.get_buffer() };
+    let key = p0.as_memref_input()?.read_to_vec();
 
     if key.len() != aes.key_size {
         trace_println!("[+] Get wrong key size !\n");
         return Err(ErrorKind::BadParameters.into());
     }
 
-    let attr = AttributeMemref::from_ref(AttributeId::SecretValue, key);
+    let attr = AttributeMemref::from_ref(AttributeId::SecretValue, &key);
 
     aes.key_object.reset();
     aes.key_object.populate(&[attr.into()])?;
@@ -152,9 +152,9 @@ pub fn set_aes_key(aes: &mut AesCipher, (p0, _, _, _): &mut ParametersAny<'_>) -
 }
 
 pub fn reset_aes_iv(aes: &mut AesCipher, (p0, _, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    let iv = unsafe { p0.as_memref_input()?.get_buffer() };
+    let iv = p0.as_memref_input()?.read_to_vec();
 
-    aes.cipher.init(iv);
+    aes.cipher.init(&iv);
 
     trace_println!("[+] TA initial vectore reset done!");
     Ok(())
@@ -163,16 +163,16 @@ pub fn reset_aes_iv(aes: &mut AesCipher, (p0, _, _, _): &mut ParametersAny<'_>) 
 pub fn cipher_buffer(aes: &mut AesCipher, (p0, p1, _, _): &mut ParametersAny<'_>) -> Result<()> {
     let (input, output) = (p0.as_memref_input()?, p1.as_memref_output()?);
 
-    if output.get_capacity() < unsafe { input.get_buffer() }.len() {
+    let input_buf = input.read_to_vec();
+    if output.buffer_len() < input_buf.len() {
         return Err(ErrorKind::BadParameters.into());
     }
 
     trace_println!("[+] TA tries to update ciphers!");
 
-    let tmp_size = aes.cipher.update(unsafe { input.get_buffer() }, unsafe {
-        output.get_buffer_mut()
-    })?;
-    output.set_updated_size(tmp_size)?;
+    let mut out_buf = vec![0u8; output.buffer_len()];
+    let tmp_size = aes.cipher.update(&input_buf, &mut out_buf)?;
+    output.set_output(&out_buf[..tmp_size])?;
     Ok(())
 }
 

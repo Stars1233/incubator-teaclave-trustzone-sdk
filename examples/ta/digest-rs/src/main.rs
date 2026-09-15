@@ -25,6 +25,8 @@ use optee_utee::{AlgorithmId, Digest};
 use optee_utee::{ErrorKind, Result};
 use proto::digest::Command;
 
+use alloc::vec;
+
 pub struct DigestOp {
     pub op: Digest,
 }
@@ -77,8 +79,8 @@ fn invoke_command(
 }
 
 pub fn update(digest: &mut DigestOp, (p0, _, _, _): &mut ParametersAny<'_>) -> Result<()> {
-    let buffer = unsafe { p0.as_memref_input()?.get_buffer() };
-    digest.op.update(buffer);
+    let buffer = p0.as_memref_input()?.read_to_vec();
+    digest.op.update(&buffer);
     Ok(())
 }
 
@@ -88,10 +90,11 @@ pub fn do_final(digest: &mut DigestOp, (p0, p1, p2, _): &mut ParametersAny<'_>) 
         p1.as_memref_output()?,
         p2.as_value_output()?,
     );
-    let input = unsafe { p0.get_buffer() };
-    let length = digest.op.do_final(input, unsafe { p1.get_buffer_mut() })?;
+    let input = p0.read_to_vec();
+    let mut out_buf = vec![0u8; p1.buffer_len()];
+    let length = digest.op.do_final(&input, &mut out_buf)?;
     p2.set_a(length as u32);
-    p1.set_updated_size(length)?;
+    p1.set_output(&out_buf[..length])?;
     Ok(())
 }
 

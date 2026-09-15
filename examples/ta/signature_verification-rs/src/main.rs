@@ -20,12 +20,13 @@
 
 extern crate alloc;
 
-use alloc::vec;
 use optee_utee::prelude::*;
 use optee_utee::{AlgorithmId, Asymmetric, AttributeId, AttributeMemref, Digest, OperationMode};
 use optee_utee::{ErrorKind, Result};
 use optee_utee::{GenericObject, TransientObject, TransientObjectType};
 use proto::signature_verification::Command;
+
+use alloc::vec;
 
 pub struct RsaSign {
     pub key: TransientObject,
@@ -65,7 +66,7 @@ fn sign((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     let p0 = p0.as_memref_input()?;
     let p1 = p1.as_memref_output()?;
     let p2 = p2.as_memref_output()?;
-    let message = unsafe { p0.get_buffer() };
+    let message = p0.read_to_vec();
     trace_println!("[+] message: {:?}", message);
 
     let rsa_key = TransientObject::allocate(TransientObjectType::RsaKeypair, 2048_usize)?;
@@ -73,17 +74,17 @@ fn sign((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     rsa_key.generate_key(2048_usize, &[])?;
 
     {
-        let buffer = unsafe { p1.get_buffer_mut() };
-        let modulus_len = rsa_key.ref_attribute(AttributeId::RsaModulus, buffer)?;
+        let mut out_buf = vec![0u8; p1.buffer_len()];
+        let modulus_len = rsa_key.ref_attribute(AttributeId::RsaModulus, &mut out_buf)?;
         let exp_len =
-            rsa_key.ref_attribute(AttributeId::RsaPublicExponent, &mut buffer[modulus_len..])?;
-        p1.set_updated_size(modulus_len + exp_len)?;
+            rsa_key.ref_attribute(AttributeId::RsaPublicExponent, &mut out_buf[modulus_len..])?;
+        p1.set_output(&out_buf[..modulus_len + exp_len])?;
     };
 
     let mut hash = [0u8; 32];
     let dig = Digest::allocate(AlgorithmId::Sha256)?;
 
-    dig.do_final(message, &mut hash)?;
+    dig.do_final(&message, &mut hash)?;
 
     let key_info = rsa_key.info()?;
 
@@ -94,8 +95,9 @@ fn sign((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     )?;
 
     rsa.set_key(&rsa_key)?;
-    let len = rsa.sign_digest(&[], &hash, unsafe { p2.get_buffer_mut() })?;
-    p2.set_updated_size(len)?;
+    let mut sig_buf = vec![0u8; p2.buffer_len()];
+    let len = rsa.sign_digest(&[], &hash, &mut sig_buf)?;
+    p2.set_output(&sig_buf[..len])?;
     Ok(())
 }
 
@@ -104,13 +106,13 @@ fn verify((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     let p1 = p1.as_memref_input()?;
     let p2 = p2.as_memref_input()?;
 
-    let message = unsafe { p0.get_buffer() };
-    let mut pub_key_mod = vec![0u8; 256];
-    let mut pub_key_exp = vec![0u8; unsafe { p1.get_buffer() }.len() - 256];
-    let signature = unsafe { p2.get_buffer() };
-
-    pub_key_mod.copy_from_slice(&unsafe { p1.get_buffer() }[..256]);
-    pub_key_exp.copy_from_slice(&unsafe { p1.get_buffer() }[256..]);
+    let message = p0.read_to_vec();
+    let pubkey = p1.read_to_vec();
+    if pubkey.len() < 256 {
+        return Err(ErrorKind::BadParameters.into());
+    }
+    let (pub_key_mod, pub_key_exp) = pubkey.split_at(256);
+    let signature = p2.read_to_vec();
 
     trace_println!("[+] message: {:?}", &message);
     trace_println!("[+] public_key_mod: {:?}", &pub_key_mod);
@@ -119,15 +121,15 @@ fn verify((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
 
     let mut rsa_pub_key = TransientObject::allocate(TransientObjectType::RsaPublicKey, 2048_usize)?;
 
-    let mod_attr = AttributeMemref::from_ref(AttributeId::RsaModulus, &pub_key_mod);
-    let exp_attr = AttributeMemref::from_ref(AttributeId::RsaPublicExponent, &pub_key_exp);
+    let mod_attr = AttributeMemref::from_ref(AttributeId::RsaModulus, pub_key_mod);
+    let exp_attr = AttributeMemref::from_ref(AttributeId::RsaPublicExponent, pub_key_exp);
 
     rsa_pub_key.populate(&[mod_attr.into(), exp_attr.into()])?;
 
     let mut hash = [0u8; 32];
     let dig = Digest::allocate(AlgorithmId::Sha256)?;
 
-    dig.do_final(message, &mut hash)?;
+    dig.do_final(&message, &mut hash)?;
 
     let key_info = rsa_pub_key.info()?;
 
@@ -138,7 +140,7 @@ fn verify((p0, p1, p2, _): &mut ParametersAny<'_>) -> Result<()> {
     )?;
 
     rsa.set_key(&rsa_pub_key)?;
-    match rsa.verify_digest(&[], &hash, signature) {
+    match rsa.verify_digest(&[], &hash, &signature) {
         Ok(_) => {
             trace_println!("[+] verify ok");
             Ok(())

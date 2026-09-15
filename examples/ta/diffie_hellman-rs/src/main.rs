@@ -28,6 +28,8 @@ use optee_utee::{
 use optee_utee::{ErrorKind, Result};
 use proto::diffie_hellman::{Command, KEY_SIZE};
 
+use alloc::vec;
+
 pub struct DiffieHellman {
     pub key: TransientObject,
 }
@@ -69,10 +71,13 @@ fn generate_key(dh: &mut DiffieHellman, (p0, p1, p2, p3): &mut ParametersAny<'_>
         p2.as_memref_output()?,
         p3.as_memref_output()?,
     );
-    // Extract prime and base from parameters
-    let prime_base_vec = unsafe { p0.get_buffer() };
-    let prime_slice = &prime_base_vec[..KEY_SIZE / 8];
-    let base_slice = &prime_base_vec[KEY_SIZE / 8..];
+    let prime_base_vec = p0.read_to_vec();
+    let prime_slice = prime_base_vec
+        .get(..KEY_SIZE / 8)
+        .ok_or(ErrorKind::BadParameters)?;
+    let base_slice = prime_base_vec
+        .get(KEY_SIZE / 8..)
+        .ok_or(ErrorKind::BadParameters)?;
 
     let attr_prime = AttributeMemref::from_ref(AttributeId::DhPrime, prime_slice);
     let attr_base = AttributeMemref::from_ref(AttributeId::DhBase, base_slice);
@@ -83,18 +88,20 @@ fn generate_key(dh: &mut DiffieHellman, (p0, p1, p2, p3): &mut ParametersAny<'_>
     dh.key
         .generate_key(KEY_SIZE, &[attr_prime.into(), attr_base.into()])?;
     {
+        let mut out_buf = vec![0u8; p2.buffer_len()];
         let key_size = dh
             .key
-            .ref_attribute(AttributeId::DhPublicValue, unsafe { p2.get_buffer_mut() })?;
-        p2.set_updated_size(key_size)?;
+            .ref_attribute(AttributeId::DhPublicValue, &mut out_buf)?;
+        p2.set_output(&out_buf[..key_size])?;
         p1.set_a(key_size as u32);
     }
 
     {
+        let mut out_buf = vec![0u8; p3.buffer_len()];
         let key_size = dh
             .key
-            .ref_attribute(AttributeId::DhPrivateValue, unsafe { p3.get_buffer_mut() })?;
-        p3.set_updated_size(key_size)?;
+            .ref_attribute(AttributeId::DhPrivateValue, &mut out_buf)?;
+        p3.set_output(&out_buf[..key_size])?;
         p1.set_b(key_size as u32);
     }
     Ok(())
@@ -106,16 +113,16 @@ fn derive_key(dh: &mut DiffieHellman, (p0, p1, p2, _): &mut ParametersAny<'_>) -
         p1.as_memref_output()?,
         p2.as_value_output()?,
     );
-    let received_public =
-        AttributeMemref::from_ref(AttributeId::DhPublicValue, unsafe { p0.get_buffer() });
+    let received = p0.read_to_vec();
+    let received_public = AttributeMemref::from_ref(AttributeId::DhPublicValue, &received);
 
     let mut operation = DeriveKey::allocate(AlgorithmId::DhDeriveSharedSecret, KEY_SIZE)?;
     operation.set_key(&dh.key)?;
     let mut derived_key = TransientObject::allocate(TransientObjectType::GenericSecret, KEY_SIZE)?;
     operation.derive(&[received_public.into()], &mut derived_key);
-    let key_size =
-        derived_key.ref_attribute(AttributeId::SecretValue, unsafe { p1.get_buffer_mut() })?;
-    p1.set_updated_size(key_size)?;
+    let mut out_buf = vec![0u8; p1.buffer_len()];
+    let key_size = derived_key.ref_attribute(AttributeId::SecretValue, &mut out_buf)?;
+    p1.set_output(&out_buf[..key_size])?;
     p2.set_a(key_size as u32);
     Ok(())
 }
