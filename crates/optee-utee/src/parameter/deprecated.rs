@@ -117,9 +117,9 @@ impl<'parameter> ParamValue<'parameter> {
 ///
 /// # Deprecated
 ///
-/// Use [`super::memref::ParameterMemrefRead`] (for `get_buffer`) and
-/// [`super::memref::ParameterMemrefWrite`] (for `get_buffer_mut`,
-/// `set_updated_size`, `write_at`) on the typed wrappers instead.
+/// Use [`super::memref::ParameterMemrefRead`] (for `read_to_vec`, `read_at`)
+/// and [`super::memref::ParameterMemrefWrite`] (for `set_updated_size`,
+/// `set_output`, `write_at`) on the typed wrappers instead.
 pub struct ParamMemref<'parameter> {
     raw: *mut raw::Memref,
     param_type: ParamType,

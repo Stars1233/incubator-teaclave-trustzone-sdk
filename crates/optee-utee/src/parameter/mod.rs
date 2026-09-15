@@ -42,7 +42,7 @@
 //! | Old pattern | New pattern |
 //! |---|---|
 //! | `params.0.as_value()?.a()` | `param.get_a()` via [`ParameterValueRead`](crate::ParameterValueRead] |
-//! | `params.0.as_memref()?.buffer()` | `param.get_buffer()` or `param.get_buffer_mut()` via [`crate::ParameterMemrefRead`]/[`crate::ParameterMemrefWrite`] |
+//! | `params.0.as_memref()?.buffer()` | `param.read_to_vec()` / `param.read_at()` via [`crate::ParameterMemrefRead`], or `param.set_output()` / `param.write_at()` via [`crate::ParameterMemrefWrite`] |
 //! | `params.0.set_updated_size(n)` | `param.set_updated_size(n)` via [`crate::ParameterMemrefWrite`] |
 //!
 //! See the [`deprecated`] module for per-type migration notes.
@@ -176,11 +176,8 @@ fn check_type_is(raw_type: RawParamType, exp_type: ParamType) -> Result<()> {
 /// match param {
 ///     ParameterAny::None => { /* no parameter */ }
 ///     ParameterAny::MemrefInput(p) => {
-///         // SAFETY: this application guarantees the REE will not mutate the
-///         // buffer while `data` is in use and does not fetch it again after
-///         // validation, preventing a TOCTOU mismatch.
-///         let data: &[u8] = unsafe { p.get_buffer() };
-///         // process data ...
+///         let data: alloc::vec::Vec<u8> = p.read_to_vec();
+///         // validate and use the TA-owned `data` ...
 ///     }
 ///     ParameterAny::ValueInput(p) => {
 ///         let a = p.get_a();

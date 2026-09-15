@@ -42,13 +42,11 @@
 //! # Shared-memory safety
 //!
 //! The buffers are mapped from Normal World, which may access them concurrently.
-//! Consequently, `get_buffer` and `get_buffer_mut` are unsafe: callers may use
-//! them only when their application guarantees that the REE will not access the
-//! memory for the returned reference's lifetime. Callers are also responsible
-//! for preventing REE-controlled time-of-check-to-time-of-use (TOCTOU) attacks;
-//! data must not be validated through a shared slice and then fetched from it
-//! again for use. Use `read_to_vec` and validate/use the resulting TA-owned copy,
-//! or use `write_at`/`set_output`, when those guarantees are unavailable.
+//! Consequently, this module only provides copy-based accessors (`read_to_vec`,
+//! `read_at` for reading; `write_at`, `set_output` for writing), mitigating
+//! REE-controlled time-of-check-to-time-of-use (TOCTOU) risks. Prefer
+//! validating and using the same copy rather than validating one fetch and
+//! using another.
 
 use super::{FromRawParameter, ParamType, RawParamType, check_type_is};
 use crate::{ErrorKind, Result, raw::TEE_Param};
@@ -74,26 +72,10 @@ pub trait ParameterMemref {
 /// Read-only access to a memory-reference parameter's buffer.
 ///
 /// Implemented by [`ParameterMemrefInput`] and [`ParameterMemrefInout`].
+///
+/// `read_to_vec` returns a TA-owned copy that is unaffected by later REE
+/// modification; prefer validating and using the same copy.
 pub trait ParameterMemrefRead: ParameterMemref {
-    /// Returns the buffer contents as a byte slice.
-    ///
-    /// For `ParameterMemrefInput` the length is the original buffer size as
-    /// supplied by the host. For `ParameterMemrefInout` the length is the
-    /// full buffer capacity, not the number of valid bytes (which may have
-    /// been updated by a prior write).
-    /// # Safety
-    ///
-    /// This slice points directly into Normal-World shared memory. The caller
-    /// must ensure the REE cannot mutate that memory for the entire lifetime of
-    /// the returned slice. The caller must also prevent TOCTOU attacks: do not
-    /// validate data through this slice and later fetch it again from shared
-    /// memory for use. If either guarantee cannot be met, use
-    /// [`Self::read_to_vec`] and perform both validation and use on the same
-    /// TA-owned copy.
-    unsafe fn get_buffer(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self.buffer_ptr(), self.buffer_len()) }
-    }
-
     /// Copies the shared buffer into TA-owned memory.
     ///
     /// The allocation is sized from the host-supplied `buffer_len`. Callers
@@ -110,6 +92,32 @@ pub trait ParameterMemrefRead: ParameterMemref {
         copy
     }
 
+    /// Copies bytes starting at `offset` into `dest`.
+    ///
+    /// Returns the number of bytes actually read. The copy is truncated
+    /// to the available bytes when `offset + dest.len()` exceeds the
+    /// buffer length; reading exactly at the end returns `Ok(0)`.
+    ///
+    /// Returns `ErrorKind::BadParameters` if `offset` is beyond the end
+    /// of the buffer.
+    fn read_at(&self, offset: usize, dest: &mut [u8]) -> Result<usize> {
+        if offset > self.buffer_len() {
+            return Err(ErrorKind::BadParameters.into());
+        }
+        let available = self.buffer_len() - offset;
+        let to_read = core::cmp::min(dest.len(), available);
+        if to_read != 0 {
+            unsafe {
+                crate::raw::TEE_MemMove(
+                    dest.as_mut_ptr().cast(),
+                    self.buffer_ptr().add(offset).cast(),
+                    to_read,
+                );
+            }
+        }
+        Ok(to_read)
+    }
+
     /// Returns the start of the shared input buffer.
     #[doc(hidden)]
     fn buffer_ptr(&self) -> *const u8;
@@ -118,28 +126,10 @@ pub trait ParameterMemrefRead: ParameterMemref {
 /// Write access to a memory-reference parameter's buffer.
 ///
 /// Implemented by [`ParameterMemrefOutput`] and [`ParameterMemrefInout`].
+///
+/// All accessors copy caller-supplied data into shared memory, so callers never
+/// hold a direct reference into Normal-World memory.
 pub trait ParameterMemrefWrite: ParameterMemref {
-    /// Returns a mutable byte slice representing the output buffer.
-    ///
-    /// After writing to the returned buffer, call
-    /// [`ParameterMemrefWrite::set_updated_size`] to report how many bytes were
-    /// produced. Otherwise the client application may observe an incorrect
-    /// output size.
-    /// # Safety
-    ///
-    /// This slice points directly into Normal-World shared memory. The caller
-    /// must ensure the REE does not read or write that memory for the entire
-    /// lifetime of the returned mutable slice. A TA that only writes output
-    /// need not protect the resulting contents from the REE. However, if the TA
-    /// also reads, validates, or makes decisions from this slice, it must treat
-    /// those bytes like input shared memory and prevent TOCTOU attacks. Prefer
-    /// [`Self::write_at`] for write-only access; copy data into TA-owned memory
-    /// before validating or otherwise relying on bytes read from this slice.
-    unsafe fn get_buffer_mut(&mut self) -> &mut [u8] {
-        let len = self.buffer_len();
-        unsafe { core::slice::from_raw_parts_mut(self.buffer_ptr(), len) }
-    }
-
     /// Sets the updated size after bounds checking.
     ///
     /// Returns `ErrorKind::ShortBuffer` if `size > buffer_len()`.
@@ -160,7 +150,7 @@ pub trait ParameterMemrefWrite: ParameterMemref {
     /// reported size to `offset + data.len()`.
     ///
     /// Returns `ErrorKind::ShortBuffer` if the new size would exceed
-    /// the buffer capacity.
+    /// the buffer length.
     fn write_at<T: AsRef<[u8]>>(&mut self, offset: usize, data: T) -> Result<()> {
         let input = data.as_ref();
         let new_size = offset
@@ -352,5 +342,33 @@ mod tests {
         }
         .unwrap();
         assert!(input.read_to_vec().is_empty());
+    }
+
+    /// Guarantees the `read_at` boundary contract: reading exactly at the end
+    /// returns `Ok(0)` with no shared-memory copy; reading beyond the end
+    /// returns `BadParameters` instead of touching out-of-bounds memory; and
+    /// offset arithmetic never overflows even with `usize::MAX`.
+    #[test]
+    fn read_at_boundary_contract() {
+        let mut backing = [1u8, 2, 3, 4, 5];
+        let mut raw_param = memref(backing.as_mut_ptr(), backing.len());
+        let input = unsafe {
+            ParameterMemrefInput::from_raw(raw::TEE_PARAM_TYPE_MEMREF_INPUT, &mut raw_param)
+        }
+        .unwrap();
+        // exactly at the end: zero bytes, no copy
+        let mut empty: [u8; 0] = [];
+        assert_eq!(input.read_at(5, &mut empty).unwrap(), 0);
+        let mut too_big = [0u8; 10];
+        assert_eq!(input.read_at(5, &mut too_big).unwrap(), 0);
+        // beyond the end: caller bug, rejected without copying
+        assert_eq!(
+            input.read_at(6, &mut too_big).unwrap_err().kind(),
+            ErrorKind::BadParameters
+        );
+        assert_eq!(
+            input.read_at(usize::MAX, &mut too_big).unwrap_err().kind(),
+            ErrorKind::BadParameters
+        );
     }
 }
