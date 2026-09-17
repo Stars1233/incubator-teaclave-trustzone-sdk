@@ -34,28 +34,39 @@ $ docker run -it --rm \
 ## 2. Build the Hello World Example
 
 Update: cargo-optee is available as an alternative to the original Makefile
-system. See the [cargo-optee documentation](../cargo-optee/README.md) for
+system. See the [cargo-optee documentation](../tools/cargo-optee/README.md) for
 details.
 
 ### If you use Makefile:
 
-**Still in Terminal A** (inside the Docker container):
+**Still in Terminal A** (inside the Docker container, at the repository root):
 ```bash
 # Build the Hello World example (both CA and TA)
-make -C examples/hello_world-rs/
+make -C examples hello_world-rs
 ```
-Under the hood, the Makefile builds both the Trusted Application (TA) and the
-Host Application separately. After a successful build, you'll find the resulting
-binaries in the `hello_world-rs` directory:
+Under the hood, the top-level `examples/Makefile` builds both the Trusted
+Application (TA) and the Client Application (CA) separately. The example is
+split across two crates: the CA crate lives in `examples/ca/hello_world-rs/`
+and the TA crate lives in `examples/ta/hello_world-rs/`. After a successful
+build, you'll find the resulting binaries in the shared workspace target
+directories:
 ```bash
-TA=ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
-HOST_APP=host/target/aarch64-unknown-linux-gnu/release/hello_world-rs
+TA=examples/ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
+HOST_APP=examples/ca/target/aarch64-unknown-linux-gnu/release/hello_world-rs
+```
+A successful build ends with the TA signing step, e.g.:
+```text
+SIGN =>  133af0ca-bdab-11eb-9130-43bf7873bf67
+```
+You can verify both artifacts exist before moving on:
+```bash
+ls $TA $HOST_APP
 ```
 
 ### If you use cargo-optee:
 
-You can see the [cargo-optee build
-commands](../cargo-optee/README.md#build-commands) for details.
+You can see the [cargo-optee Quick Build for Hello
+World](../tools/cargo-optee/README.md#quick-build-for-hello-world) for details.
 
 ## 3. Make the Artifacts Accessible to the Emulator
 After building the Hello World example, the next step is to make the compiled
@@ -77,13 +88,14 @@ sync_to_emulator --host $HOST_APP
 ```
 Run `sync_to_emulator -h` for more usage options.
 
-#### Option 2: Integrate sync with TA's Makefile
+#### Option 2: Integrate sync with the example Makefiles
 For convenience during daily development, the sync invocation can be integrated
-into the Makefile. In the `hello_world-rs` example, an `emulate` target is
-provided. This helps automatically build the artifacts and sync them to the
-emulator in one step:
+into the Makefiles. Both the CA crate (`examples/ca/hello_world-rs`) and the TA
+crate (`examples/ta/hello_world-rs`) provide an `emulate` target, which builds
+the artifacts and syncs them to the emulator in one step:
 ```bash
-make -C examples/hello_world-rs/ emulate
+make -C examples/ca/hello_world-rs emulate
+make -C examples/ta/hello_world-rs emulate
 ```
 
 ## 4. Multi-Terminal Execution
@@ -164,8 +176,23 @@ Now we are ready to interact with the TA from normal world shell.
 # Execute the Hello World Client Application
 $ ./host/hello_world-rs
 ```
+Expected output in **Terminal B** (normal world):
+```text
+original value is 29
+inc value is 129
+dec value is 29
+Success
+```
 The secure world logs, including TA debug messages, are displayed in **Terminal
-C**.
+C**. You should see the TA lifecycle and command traces there, e.g.:
+```text
+[+] TA create
+[+] TA open session
+[+] TA invoke command
+[+] TA invoke command
+[+] TA close session
+[+] TA destroy
+```
 
 ## 6. Iterative Development with Frequent Code Updates and Execution
 During active development and debugging, you can leave Terminals B, C, and D

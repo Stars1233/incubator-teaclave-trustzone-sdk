@@ -76,7 +76,7 @@ This section provides a quick start guide for building the Hello World example
 using `cargo-optee`. Before proceeding, ensure you have set up the Docker
 development environment. For detailed instructions on setting up the Docker
 environment, refer to the [QEMU emulation
-guide](../docs/emulate-and-dev-in-docker.md).
+guide](../../docs/emulate-and-dev-in-docker.md).
 
 #### Prerequisites
 
@@ -100,17 +100,17 @@ docker run -it --rm \
 
 > 📖 **Note**: If you need Rust standard library (std) support, refer to the
 > [Docker development environment guide with std
-> support](../docs/emulate-and-dev-in-docker-std.md) and use the
+> support](../../docs/emulate-and-dev-in-docker-std.md) and use the
 > `teaclave/teaclave-trustzone-emulator-std-expand-memory:latest` image.
 
 #### Build Steps
 
-**1. Navigate to the Hello World example directory**
+**1. Work from the repository root**
 
-Inside the Docker container, execute:
-```bash
-cd examples/hello_world-rs/
-```
+Inside the Docker container, all paths below are relative to the repository
+root. The Hello World example is split across two crates:
+- TA crate: `examples/ta/hello_world-rs/`
+- CA crate: `examples/ca/hello_world-rs/`
 
 **2. Build the Trusted Application (TA)**
 
@@ -121,7 +121,7 @@ development kit is typically located at
 ```bash
 # Build aarch64 no-std TA (default configuration)
 cargo-optee build ta \
-  --manifest-path ta/Cargo.toml \
+  --manifest-path examples/ta/hello_world-rs/Cargo.toml \
   --ta-dev-kit-dir /opt/teaclave/optee/optee_os/out/arm-plat-vexpress/export-ta_arm64 \
   --arch aarch64 \
   --no-std
@@ -133,7 +133,7 @@ Build the client application:
 ```bash
 # Build aarch64 CA
 cargo-optee build ca \
-  --manifest-path host/Cargo.toml \
+  --manifest-path examples/ca/hello_world-rs/Cargo.toml \
   --optee-client-export /opt/teaclave/optee/optee_client/export_arm64 \
   --arch aarch64
 ```
@@ -142,7 +142,7 @@ cargo-optee build ca \
 > [Configuration System](#configuration-system)), you can simplify the command
 > by only specifying `--manifest-path`:
 > ```bash
-> cargo-optee build ca --manifest-path host/Cargo.toml
+> cargo-optee build ca --manifest-path examples/ca/hello_world-rs/Cargo.toml
 > ```
 
 #### Build Output
@@ -151,8 +151,9 @@ After a successful build, you can find the generated files at the following
 locations:
 
 - **TA binary**:
-  `ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta`
-- **CA binary**: `host/target/aarch64-unknown-linux-gnu/release/hello_world-rs`
+  `examples/ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta`
+- **CA binary**:
+  `examples/ca/target/aarch64-unknown-linux-gnu/release/hello_world-rs`
 
 #### Next Steps
 
@@ -160,7 +161,7 @@ After building, you can:
 1. Use the `sync_to_emulator` command to sync build artifacts to the emulator
    environment
 2. Start the QEMU emulator for testing
-3. Refer to the [QEMU emulation guide](../docs/emulate-and-dev-in-docker.md) for
+3. Refer to the [QEMU emulation guide](../../docs/emulate-and-dev-in-docker.md) for
    complete development and testing workflows
 
 > 💡 **Tip**: If you configure metadata in `Cargo.toml` (see [Configuration
@@ -204,7 +205,12 @@ project/
         └── lib.rs
 ```
 
-See examples in the SDK for reference, such as `hello_world-rs`. The `cargo new`
+See examples in the SDK for reference, such as `hello_world-rs`. Note that in
+this SDK's `examples/` directory the layout is split by side instead of by
+project: the TA crate lives in `examples/ta/hello_world-rs/` (with `uuid.txt`
+next to it), the CA crate lives in `examples/ca/hello_world-rs/` (named `ca/`
+rather than `host/`), and the shared definitions live in the workspace crate
+`examples/ta/proto`. The `cargo new`
 command (planned, not yet available) will generate a project template with this
 structure. For now, copy an existing example as a starting point.
 

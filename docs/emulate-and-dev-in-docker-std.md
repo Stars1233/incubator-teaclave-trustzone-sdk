@@ -56,7 +56,7 @@ $ ln -s $RUST_STD_DIR rust
 The key difference is the **unified configuration system** that allows switching
 between std/no-std modes and different architectures on demand.
 
-And [cargo-optee](../cargo-optee/README.md#configuration-system) is available as
+And [cargo-optee](../tools/cargo-optee/README.md#configuration-system) is available as
 an alternative to the original configuration management tool: switch_config.
 
 ### If you use switch_config:
@@ -95,7 +95,7 @@ $ switch_config --host arm32 && switch_config --ta std/aarch64
 ### If you use cargo-optee:
 
 You can see the [cargo-optee configuration
-system](../cargo-optee/README.md#configuration-system) for details.
+system](../tools/cargo-optee/README.md#configuration-system) for details.
 
 ## 3. Building and Target Differences
 
@@ -110,21 +110,20 @@ note these important target differences:
 
 **Example std build output:**
 ```bash
-TA=ta/target/aarch64-unknown-optee/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
+TA=examples/ta/target/aarch64-unknown-optee/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
 ```
 
 ## 4. Hello World Example: Std vs No-Std
 
 ### Build with Default Std Configuration
 ```bash
-# Build hello world with std/aarch64 (default configuration)
-$ cd examples/hello_world-rs/
-$ make
+# From the repository root: build hello world with std/aarch64 (default configuration)
+$ make -C examples hello_world-rs
 ```
 
 **Result:** TA built with std enabled, targeting `aarch64-unknown-optee`:
 ```bash
-TA=ta/target/aarch64-unknown-optee/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
+TA=examples/ta/target/aarch64-unknown-optee/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
 ```
 
 ### Switch to No-Std and Rebuild
@@ -136,11 +135,11 @@ $ make clean && make
 
 **Result:** TA now targets `aarch64-unknown-linux-gnu` (no-std):
 ```bash
-TA=ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
+TA=examples/ta/target/aarch64-unknown-linux-gnu/release/133af0ca-bdab-11eb-9130-43bf7873bf67.ta
 ```
 
 If you are using cargo-optee, the relevant workflow is already clearly
-documented in the [cargo-optee appendix](../cargo-optee/README.md#appendix), so
+documented in the [cargo-optee appendix](../tools/cargo-optee/README.md#appendix), so
 it will not be repeated here.
 
 ## 5. Emulation and Execution
