@@ -317,7 +317,7 @@ fn setup_build_command(
     } else {
         BuildMode::TaNoStd
     };
-    let (target, _cross_compile) = get_target_and_cross_compile(config.arch, build_mode)?;
+    let (target, cross_compile) = get_target_and_cross_compile(config.arch, build_mode)?;
 
     // Setup custom targets if using std - keep TempDir alive
     let temp_dir = if config.std {
@@ -382,6 +382,10 @@ fn setup_build_command(
         .canonicalize()
         .unwrap_or_else(|_| config.ta_dev_kit_dir.clone());
     cmd.env("TA_DEV_KIT_DIR", &absolute_ta_dev_kit_dir);
+    // Set CROSS_COMPILE so dependencies with `cc` build scripts pick the
+    // cross compiler. The custom OP-TEE targets are absent from `cc`'s
+    // builtin table, so without it C code is silently compiled for the host.
+    cmd.env("CROSS_COMPILE", cross_compile);
 
     // Set RUST_TARGET_PATH for custom targets when using std
     if let Some(ref temp_dir_ref) = temp_dir {
@@ -424,4 +428,39 @@ fn setup_custom_targets() -> Result<TempDir> {
     fs::write(arm_path, ARM_TARGET_JSON)?;
 
     Ok(temp_dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::Arch;
+
+    /// Guarantee: every TA cargo invocation carries `CROSS_COMPILE`, so
+    /// dependencies with `cc` build scripts compile C code for the target.
+    /// The custom OP-TEE triples are absent from `cc`'s builtin table;
+    /// without this, C code is silently built for the host and linking fails.
+    #[test]
+    fn ta_commands_carry_cross_compile() -> anyhow::Result<()> {
+        let config = TaBuildConfig {
+            arch: Arch::Aarch64,
+            debug: false,
+            path: PathBuf::from("/tmp/project"),
+            uuid_path: None,
+            env: Vec::new(),
+            no_default_features: false,
+            features: None,
+            std: false,
+            ta_dev_kit_dir: PathBuf::from("/tmp/ta-dev-kit"),
+            signing_key: PathBuf::from("/tmp/key.pem"),
+        };
+        let (build, _temp) = setup_build_command(&config, "build")?;
+        let value = build
+            .get_envs()
+            .find(|(k, _)| k.to_str() == Some("CROSS_COMPILE"))
+            .and_then(|(_, v)| v)
+            .map(|v| v.to_string_lossy().into_owned())
+            .ok_or_else(|| anyhow::anyhow!("CROSS_COMPILE not set on TA cargo invocation"))?;
+        assert_eq!(value, "aarch64-linux-gnu-");
+        Ok(())
+    }
 }
