@@ -105,24 +105,34 @@ impl Linker {
         println!("cargo:rustc-link-search={}", search_path.display());
         println!("cargo:rustc-link-lib=static=utee");
         println!("cargo:rustc-link-lib=static=utils");
+        // Re-emit the libraries as trailing link args. rustc places
+        // `rustc-link-lib` inputs before the dependency rlibs, which combined
+        // with `--as-needed` drops archive members (e.g. memcmp/bcmp from
+        // libutils) that only later objects need. Debug builds then fail to
+        // link while release builds happen to inline those calls away.
+        self.link_arg("-lutee");
+        self.link_arg("-lutils");
         println!("cargo:rustc-link-arg=-e__ta_entry");
         println!("cargo:rustc-link-arg=-pie");
         println!("cargo:rustc-link-arg=-Os");
-        match self.linker_type {
-            LinkerType::Cc => println!("cargo:rustc-link-arg=-Wl,--sort-section=alignment"),
-            LinkerType::Ld => println!("cargo:rustc-link-arg=--sort-section=alignment"),
-        };
+        self.link_arg("--sort-section=alignment");
         let mut dyn_list = File::create(out_dir.join("dyn_list"))?;
         writeln!(
             dyn_list,
             "{{ __elf_phdr_info; trace_ext_prefix; trace_level; ta_head; }};"
         )?;
-        match self.linker_type {
-            LinkerType::Cc => println!("cargo:rustc-link-arg=-Wl,--dynamic-list=dyn_list"),
-            LinkerType::Ld => println!("cargo:rustc-link-arg=--dynamic-list=dyn_list"),
-        }
+        self.link_arg("--dynamic-list=dyn_list");
 
         Ok(())
+    }
+
+    /// Emit one linker argument in `ld` form, translating it through the `cc`
+    /// driver when that is the configured linker.
+    fn link_arg(&self, arg: &str) {
+        match self.linker_type {
+            LinkerType::Cc => println!("cargo:rustc-link-arg=-Wl,{arg}"),
+            LinkerType::Ld => println!("cargo:rustc-link-arg={arg}"),
+        }
     }
 }
 
@@ -138,10 +148,7 @@ impl Linker {
         println!("cargo:rerun-if-env-changed={}", ENV_TARGET);
         match env::var(ENV_TARGET) {
             Ok(ref v) if v == "arm-unknown-linux-gnueabihf" || v == "arm-unknown-optee" => {
-                match self.linker_type {
-                    LinkerType::Cc => println!("cargo:rustc-link-arg=-Wl,--no-warn-mismatch"),
-                    LinkerType::Ld => println!("cargo:rustc-link-arg=--no-warn-mismatch"),
-                };
+                self.link_arg("--no-warn-mismatch");
             }
             _ => {}
         };
